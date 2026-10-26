@@ -1,0 +1,248 @@
+local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+Fluent.Notify = function() end
+
+local Window = Fluent:CreateWindow({
+    Title = "slskiller",
+    SubTitle = "FIFA Super Soccer",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(640, 480),
+    Acrylic = false,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.Insert,
+})
+
+local Options = Fluent.Options
+
+local Tabs = {
+    General = Window:AddTab({ Title = "General", Icon = "settings" }),
+    Menu = Window:AddTab({ Title = "Menu", Icon = "menu" }),
+}
+
+Tabs.General:AddSection("Hitbox Expander")
+
+local hbEnabled = false
+local hbX, hbY, hbZ = 15, 10, 15
+local hbTrans = 0.5
+local defaultSize = Vector3.new(4, 5, 4)
+
+local function getHitbox(char)
+    if not char then return nil end
+    return char:FindFirstChild("Hitbox")
+end
+
+local function applyHitbox()
+    pcall(function()
+        local char = lp.Character
+        if not char then return end
+        local hb = getHitbox(char)
+        if hb and hb:IsA("BasePart") then
+            if hbEnabled then
+                hb.Size = Vector3.new(hbX, hbY, hbZ)
+                hb.Transparency = hbTrans
+                hb.CanCollide = false
+            else
+                hb.Size = defaultSize
+                hb.Transparency = 1
+            end
+        end
+    end)
+end
+
+local charConn = lp.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    applyHitbox()
+end)
+
+Tabs.General:AddToggle("HitboxEnabled", {
+    Title = "Enable Hitbox",
+    Default = false,
+    Callback = function(v)
+        hbEnabled = v
+        applyHitbox()
+    end,
+})
+
+Tabs.General:AddKeybind("HitboxKeybind", {
+    Title = "Hitbox Keybind",
+    Mode = "Toggle",
+    Default = "H",
+    Callback = function()
+        hbEnabled = not hbEnabled
+        if Options.HitboxEnabled then
+            Options.HitboxEnabled:SetValue(hbEnabled)
+        else
+            applyHitbox()
+        end
+    end,
+})
+
+Tabs.General:AddSlider("HitboxX", {
+    Title = "Hitbox X",
+    Min = 2,
+    Max = 100,
+    Default = 15,
+    Rounding = 0,
+    Callback = function(v)
+        hbX = v
+        if hbEnabled then applyHitbox() end
+    end,
+})
+
+Tabs.General:AddSlider("HitboxY", {
+    Title = "Hitbox Y",
+    Min = 2,
+    Max = 60,
+    Default = 10,
+    Rounding = 0,
+    Callback = function(v)
+        hbY = v
+        if hbEnabled then applyHitbox() end
+    end,
+})
+
+Tabs.General:AddSlider("HitboxZ", {
+    Title = "Hitbox Z",
+    Min = 2,
+    Max = 100,
+    Default = 15,
+    Rounding = 0,
+    Callback = function(v)
+        hbZ = v
+        if hbEnabled then applyHitbox() end
+    end,
+})
+
+Tabs.General:AddSlider("HitboxTransparency", {
+    Title = "Hitbox Transparency",
+    Min = 0,
+    Max = 10,
+    Default = 5,
+    Rounding = 0,
+    Callback = function(v)
+        hbTrans = v / 10
+        if hbEnabled then applyHitbox() end
+    end,
+})
+
+Tabs.Menu:AddSection("Panic")
+
+local destroyed = false
+local function triggerPanic()
+    if destroyed then return end
+    destroyed = true
+
+    hbEnabled = false
+    applyHitbox()
+
+    pcall(function()
+        UIS.MouseBehavior = Enum.MouseBehavior.Default
+        UIS.MouseIconEnabled = true
+    end)
+
+    if charConn then
+        charConn:Disconnect()
+        charConn = nil
+    end
+
+    pcall(function()
+        Window:Destroy()
+    end)
+end
+
+Tabs.Menu:AddKeybind("PanicKeybind", {
+    Title = "Panic Key",
+    Mode = "Toggle",
+    Default = "Delete",
+    Callback = function()
+        triggerPanic()
+    end,
+})
+
+Tabs.Menu:AddSection("Settings")
+
+Tabs.Menu:AddDropdown("ThemeDropdown", {
+    Title = "Theme",
+    Values = Fluent.Themes or { "Dark", "Darker", "Light", "Aqua", "Amethyst", "Rose" },
+    Default = Fluent.Theme or "Dark",
+    Callback = function(v)
+        pcall(function() Fluent:SetTheme(v) end)
+    end,
+})
+
+Tabs.Menu:AddSection("Keybinds")
+
+local openKeybind = Tabs.Menu:AddKeybind("OpenKeybind", {
+    Title = "Toggle UI Key",
+    Mode = "Toggle",
+    Default = "Insert",
+    Callback = function() end,
+})
+
+openKeybind:OnChanged(function(newKey)
+    pcall(function()
+        if Enum.KeyCode[newKey] then
+            Window.MinimizeKey = Enum.KeyCode[newKey]
+        end
+    end)
+end)
+
+Tabs.Menu:AddToggle("UnlockMouseToggle", {
+    Title = "Unlock Mouse on Open",
+    Default = true,
+    Callback = function() end,
+})
+
+Tabs.Menu:AddSection("Actions")
+
+Tabs.Menu:AddButton({
+    Title = "Unload Script",
+    Callback = function()
+        triggerPanic()
+    end,
+})
+
+local menuVisible = true
+local prevBehavior = UIS.MouseBehavior
+
+local function updateMouse(open)
+    if destroyed then return end
+    pcall(function()
+        if Options.UnlockMouseToggle and not Options.UnlockMouseToggle.Value then return end
+        if open then
+            UIS.MouseBehavior = Enum.MouseBehavior.Default
+            UIS.MouseIconEnabled = true
+        else
+            UIS.MouseBehavior = prevBehavior
+        end
+    end)
+end
+
+local inputConn
+inputConn = UIS.InputBegan:Connect(function(inp, gpe)
+    if destroyed then
+        if inputConn then inputConn:Disconnect() end
+        return
+    end
+
+    local panicKey = (Options.PanicKeybind and Options.PanicKeybind.Value) or "Delete"
+    if inp.KeyCode == (Enum.KeyCode[panicKey] or Enum.KeyCode.Delete) then
+        triggerPanic()
+        return
+    end
+
+    if gpe then return end
+    local k = (Options.OpenKeybind and Options.OpenKeybind.Value) or "Insert"
+    if inp.KeyCode == (Enum.KeyCode[k] or Enum.KeyCode.Insert) then
+        menuVisible = not menuVisible
+        updateMouse(menuVisible)
+    end
+end)
+
+updateMouse(true)
+applyHitbox()
+
+Window:SelectTab(1)
